@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MHYI Grants and Partnerships Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--ink:#14283A;--teal:#0E4F5C;--sage:#5E8C73;--amber:#E0A526;--bg:#EEF2F5;--card:#fff;--line:#d5dde4;--red:#B5402F}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 Figtree,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-family:'Bricolage Grotesque',sans-serif;margin:0}
+header{background:var(--ink);color:#fff;padding:14px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;flex:1}
+nav{display:flex;gap:6px}
+nav button,.btn{border:0;border-radius:6px;padding:8px 14px;font:inherit;font-weight:500;cursor:pointer;background:var(--teal);color:#fff}
+nav button{background:transparent;color:#cfe0e6}
+nav button.on{background:var(--teal);color:#fff}
+.btn.alt{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.red{background:var(--red)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--amber);outline-offset:1px}
+main{max-width:1100px;margin:0 auto;padding:20px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:var(--card);border-left:5px solid var(--sage);padding:12px 14px;border-radius:6px}
+.stat b{font:700 26px 'Bricolage Grotesque'}
+.stat.warn{border-color:var(--amber)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+input,select,textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px;background:#fff;width:100%}
+.filters input,.filters select{width:auto;flex:1;min-width:130px}
+.item{background:var(--card);border-radius:8px;padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:1fr auto;gap:6px 16px;cursor:pointer;border:1px solid transparent}
+.item:hover{border-color:var(--sage)}
+.item h3{font-size:17px}
+.meta{color:#52667a;font-size:13px}
+.tag{display:inline-block;background:#e1ece6;color:#2f5b45;border-radius:10px;padding:1px 9px;font-size:12px;margin:2px 4px 0 0}
+.due{text-align:right;font-weight:600}
+.due.soon{color:var(--red)}
+.pill{font-size:12px;background:var(--ink);color:#fff;border-radius:10px;padding:2px 10px;display:inline-block}
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(220px,1fr);gap:12px;overflow-x:auto}
+.col{background:#e3e9ee;border-radius:8px;padding:10px;min-height:200px}
+.col h3{font-size:14px;margin-bottom:8px}
+.col .item{grid-template-columns:1fr;padding:10px}
+.modal{position:fixed;inset:0;background:rgba(20,40,58,.55);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:20px;z-index:5}
+.modal.open{display:flex}
+.sheet{background:#fff;border-radius:10px;max-width:760px;width:100%;padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.grid2{grid-template-columns:1fr}.item{grid-template-columns:1fr}.due{text-align:left}}
+label{font-weight:600;font-size:13px;display:block;margin:10px 0 3px}
+.checks{display:flex;flex-wrap:wrap;gap:6px 14px}
+.checks label{font-weight:400;margin:0;display:flex;gap:5px;align-items:center}
+.checks input{width:auto}
+.row{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.login{max-width:360px;margin:12vh auto;background:#fff;padding:24px;border-radius:10px}
+.empty{padding:30px;text-align:center;color:#52667a}
+.spot{outline:4px solid var(--amber);outline-offset:4px;border-radius:6px;position:relative;z-index:8}
+#tour{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);width:min(440px,calc(100% - 24px));background:#fff;border-radius:10px;padding:16px;z-index:9;box-shadow:0 8px 30px rgba(20,40,58,.35);display:none}
+#tour.open{display:block}
+#tour h3{font-size:17px;margin-bottom:4px}
+#tour p{margin:0 0 10px}
+#tour .row{margin-top:0;justify-content:space-between;align-items:center}
+.help{background:#e8f1ee;border-radius:6px;padding:8px 12px;font-size:13px;margin:8px 0}
+.hide{display:none!important}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<section id="login" class="login hide">
+  <h2>Grants and Partnerships</h2>
+  <p class="meta">MHYI team sign-in</p>
+  <label for="em">Email</label><input id="em" type="email" autocomplete="username">
+  <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+  <div class="row"><button class="btn" id="signin">Sign in</button></div>
+  <p id="lerr" class="meta" style="color:var(--red)"></p>
+</section>
+
+<div id="app" class="hide">
+<header>
+  <h1>MHYI Grants and Partnerships</h1>
+  <nav>
+    <button data-v="home" class="on">Home</button>
+    <button data-v="list">Opportunities</button>
+    <button data-v="pipe">Pipeline</button>
+    <button data-v="review">Review queue</button>
+  </nav>
+  <button class="btn alt" id="tourbtn">Take a tour</button>
+  <button class="btn alt" id="signout">Sign out</button>
+</header>
+<div id="tour" role="dialog" aria-live="polite">
+  <h3 id="tt"></h3><p id="tb"></p>
+  <div class="row"><span class="meta" id="tc"></span>
+    <span style="display:flex;gap:8px"><button class="btn alt" id="tskip">Skip</button><button class="btn alt" id="tprev">Back</button><button class="btn" id="tnext">Next</button></span></div>
+</div>
+<main>
+  <div id="home"></div>
+  <div id="list" class="hide">
+    <div class="filters">
+      <input id="q" placeholder="Search title, funder, notes">
+      <select id="fr"></select><select id="ft"></select><select id="fth"></select><select id="fs"></select>
+      <button class="btn" id="add">Add opportunity</button>
+    </div>
+    <div id="items"></div>
+  </div>
+  <div id="pipe" class="hide"><div class="board" id="board"></div></div>
+  <div id="review" class="hide"></div>
+</main>
+</div>
+
+<div class="modal" id="modal"><div class="sheet">
+  <h2 id="mt">Opportunity</h2>
+  <div class="help">Only the title is required. Fill in what you know now and come back later. New entries stay in the Review queue until you tick "Verified" at the bottom, which shows them in the main list and on the Home page.</div>
+  <label>Title</label><input id="f_title">
+  <div class="grid2">
+    <div><label>Funder</label><input id="f_funder"></div>
+    <div><label>Type</label><select id="f_type"></select></div>
+    <div><label>Region</label><select id="f_region"></select></div>
+    <div><label>Amount</label><input id="f_amount" placeholder="e.g. $5,000 to $20,000"></div>
+    <div><label>Opens on</label><input id="f_opens" type="date"></div>
+    <div><label>Deadline</label><input id="f_deadline" type="date"></div>
+    <div><label>MHYI project it suits</label><select id="f_proj"></select></div>
+    <div><label>Status</label><select id="f_status"></select></div>
+    <div><label>Owner</label><input id="f_owner"></div>
+    <div><label>Contact</label><input id="f_contact"></div>
+  </div>
+  <label style="display:flex;gap:6px;align-items:center"><input id="f_rolling" type="checkbox" style="width:auto"> Rolling (no fixed deadline)</label>
+  <label>Themes</label>
+  <div class="checks" id="f_themes"></div>
+  <div class="row" style="margin-top:8px"><input id="newtheme" placeholder="Add another theme" style="max-width:240px"><button class="btn alt" id="addtheme" type="button">Add theme</button></div>
+  <label>Link</label><input id="f_link" placeholder="https://">
+  <label>Eligibility</label><textarea id="f_elig" rows="2"></textarea>
+  <label>Documents required</label><textarea id="f_docs" rows="2"></textarea>
+  <label>How to apply</label><textarea id="f_how" rows="2"></textarea>
+  <label>Notes</label><textarea id="f_notes" rows="2"></textarea>
+  <label>Source</label><input id="f_source" placeholder="Where you found it">
+  <label style="display:flex;gap:6px;align-items:center"><input id="f_ver" type="checkbox" style="width:auto"> Verified against the funder's page</label>
+  <div class="row">
+    <button class="btn" id="save">Save</button>
+    <button class="btn alt" id="close">Cancel</button>
+    <button class="btn red hide" id="del">Delete</button>
+  </div>
+  <p id="merr" class="meta" style="color:var(--red)"></p>
+</div></div>
+
+<script>
+// 1) Paste your Supabase project values here (Project Settings > API). Use the anon public key only.
+const SUPABASE_URL = 'https://nawfdzifccbszemljars.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = 'sb_publishable__o-8riDrIEwWnZErkLiTDw_Ri7BWeLA';
+
+const TYPES=['Grant','Partnership','Fellowship','CSR','Award','Other'];
+const REGIONS=['Nigeria','West Africa','Africa','Diaspora','Global'];
+const STATUSES=['Spotted','Reviewing','Preparing','Submitted','Won','Lost'];
+const PROJECTS=['Any / general','TIG (The Informed Generation)','Clean Camp Heroes','Girls in schools','Other'];
+let THEMES=['Youth mental health','Education','Health and wellbeing','Gender and girls','Climate and environment','Humanitarian and IDPs','Capacity building','Digital and innovation','Livelihoods and entrepreneurship','Policy and advocacy','Other'];
+
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const $=id=>document.getElementById(id);
+let data=[],role=null,editing=null;
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const days=d=>d?Math.ceil((new Date(d)-new Date(new Date().toDateString()))/864e5):null;
+const fill=(el,opts,first)=>{el.innerHTML=(first?`<option value="">${first}</option>`:'')+opts.map(o=>`<option>${esc(o)}</option>`).join('')};
+
+async function boot(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){$('login').classList.remove('hide');$('app').classList.add('hide');return}
+  const {data:r}=await sb.from('team_members').select('role').maybeSingle();
+  if(!r){await sb.auth.signOut();$('lerr').textContent='This email is not on the MHYI team list.';$('login').classList.remove('hide');return}
+  role=r.role;$('login').classList.add('hide');$('app').classList.remove('hide');
+  if(role==='viewer')$('add').classList.add('hide');
+  init();await load();maybeTour();
+}
+$('signin').onclick=async()=>{
+  $('lerr').textContent='';
+  const {error}=await sb.auth.signInWithPassword({email:$('em').value.trim(),password:$('pw').value});
+  if(error)$('lerr').textContent='Sign-in failed. Check your email and password.';else boot();
+};
+$('signout').onclick=async()=>{await sb.auth.signOut();location.reload()};
+
+function init(){
+  fill($('fr'),REGIONS,'All regions');fill($('ft'),TYPES,'All types');
+  fill($('fth'),THEMES,'All themes');fill($('fs'),STATUSES,'All statuses');
+  fill($('f_type'),TYPES);fill($('f_region'),REGIONS);fill($('f_proj'),PROJECTS);fill($('f_status'),STATUSES);
+  ['q','fr','ft','fth','fs'].forEach(i=>$(i).oninput=renderList);
+  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+    ['home','list','pipe','review'].forEach(v=>$(v).classList.toggle('hide',v!==b.dataset.v));
+  });
+}
+async function load(){
+  const {data:d,error}=await sb.from('opportunities').select('*').order('deadline',{ascending:true,nullsFirst:false});
+  if(error){$('home').innerHTML='<div class="empty">Could not load data. Check your Supabase setup.</div>';return}
+  data=d;
+  data.forEach(o=>(o.themes||[]).forEach(t=>{if(!THEMES.includes(t))THEMES.push(t)}));
+  fill($('fth'),THEMES,'All themes');
+  render();
+}
+function render(){renderHome();renderList();renderBoard();renderReview()}
+
+function card(o){
+  const n=days(o.deadline);
+  const due=o.rolling?'Rolling':o.deadline?`${esc(o.deadline)}<br><span class="meta">${n<0?'Closed':n===0?'Due today':n+' days left'}</span>`:'No deadline';
+  return `<div class="item" data-id="${o.id}"><div><h3>${esc(o.title)}</h3>
+    <div class="meta">${esc(o.funder||'Funder not set')} · ${esc(o.type)} · ${esc(o.region)}${o.amount?' · '+esc(o.amount):''}</div>
+    <div>${(o.themes||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div></div>
+    <div class="due ${n!==null&&n>=0&&n<=14?'soon':''}">${due}<br><span class="pill">${esc(o.status)}</span></div></div>`;
+}
+function bind(root){root.querySelectorAll('.item').forEach(e=>e.onclick=()=>openForm(data.find(o=>o.id===e.dataset.id)))}
+
+function renderHome(){
+  const ok=data.filter(o=>o.verified);
+  const soon=ok.filter(o=>{const n=days(o.deadline);return n!==null&&n>=0&&n<=14});
+  const active=data.filter(o=>['Reviewing','Preparing'].includes(o.status));
+  $('home').innerHTML=`<div class="stats">
+    <div class="stat warn"><b>${soon.length}</b><br>closing in 14 days</div>
+    <div class="stat"><b>${active.length}</b><br>being prepared</div>
+    <div class="stat"><b>${data.filter(o=>o.status==='Submitted').length}</b><br>submitted</div>
+    <div class="stat"><b>${data.filter(o=>!o.verified).length}</b><br>to verify</div></div>
+    <h2 style="margin-bottom:10px">Closing soon</h2>
+    <div id="soon">${soon.map(card).join('')||'<div class="empty">Nothing closing in the next 14 days. Add opportunities to start tracking.</div>'}</div>`;
+  bind($('soon'));
+}
+function renderList(){
+  const q=$('q').value.toLowerCase();
+  const l=data.filter(o=>o.verified&&
+    (!q||[o.title,o.funder,o.notes,o.eligibility].join(' ').toLowerCase().includes(q))&&
+    (!$('fr').value||o.region===$('fr').value)&&(!$('ft').value||o.type===$('ft').value)&&
+    (!$('fth').value||(o.themes||[]).includes($('fth').value))&&(!$('fs').value||o.status===$('fs').value));
+  $('items').innerHTML=l.map(card).join('')||'<div class="empty">No verified opportunities match. Add one, or verify items in the review queue.</div>';
+  bind($('items'));
+}
+function renderBoard(){
+  $('board').innerHTML=STATUSES.map(s=>`<div class="col"><h3>${s}</h3>${data.filter(o=>o.verified&&o.status===s).map(card).join('')}</div>`).join('');
+  bind($('board'));
+}
+function renderReview(){
+  const l=data.filter(o=>!o.verified);
+  $('review').innerHTML=`<p class="meta">New or unchecked entries. Confirm the deadline and eligibility on the funder's page, then tick "Verified".</p>`+(l.map(card).join('')||'<div class="empty">Nothing waiting for review.</div>');
+  bind($('review'));
+}
+
+function themeBoxes(sel=[]){
+  $('f_themes').innerHTML=THEMES.map(t=>`<label><input type="checkbox" value="${esc(t)}" ${sel.includes(t)?'checked':''}>${esc(t)}</label>`).join('');
+}
+$('addtheme').onclick=()=>{
+  const v=$('newtheme').value.trim();if(!v)return;
+  const cur=[...$('f_themes').querySelectorAll('input:checked')].map(i=>i.value);
+  if(!THEMES.includes(v))THEMES.push(v);cur.push(v);themeBoxes(cur);$('newtheme').value='';
+};
+const F={title:'f_title',funder:'f_funder',type:'f_type',region:'f_region',amount:'f_amount',opens_on:'f_opens',deadline:'f_deadline',mhyi_project:'f_proj',status:'f_status',owner:'f_owner',contact:'f_contact',link:'f_link',eligibility:'f_elig',documents:'f_docs',how_to_apply:'f_how',notes:'f_notes',source:'f_source'};
+function openForm(o){
+  editing=o||null;$('mt').textContent=o?'Edit opportunity':'Add opportunity';$('merr').textContent='';
+  for(const [k,id] of Object.entries(F))$(id).value=o?(o[k]??''):'';
+  if(!o){$('f_type').value='Grant';$('f_region').value='Africa';$('f_status').value='Spotted';$('f_proj').value=PROJECTS[0]}
+  $('f_rolling').checked=!!o?.rolling;$('f_ver').checked=!!o?.verified;
+  themeBoxes(o?.themes||[]);
+  const ro=role==='viewer';
+  $('save').classList.toggle('hide',ro);$('del').classList.toggle('hide',!o||role!=='admin');
+  $('modal').classList.add('open');
+}
+$('add').onclick=()=>openForm(null);
+$('close').onclick=()=>$('modal').classList.remove('open');
+$('save').onclick=async()=>{
+  const row={};
+  for(const [k,id] of Object.entries(F))row[k]=$(id).value.trim()||null;
+  if(!row.title){$('merr').textContent='Add a title before saving.';return}
+  row.rolling=$('f_rolling').checked;row.verified=$('f_ver').checked;
+  row.themes=[...$('f_themes').querySelectorAll('input:checked')].map(i=>i.value);
+  const q=editing?sb.from('opportunities').update(row).eq('id',editing.id):sb.from('opportunities').insert(row);
+  const {error}=await q;
+  if(error){$('merr').textContent='Could not save: '+error.message;return}
+  $('modal').classList.remove('open');load();
+};
+$('del').onclick=async()=>{
+  if(!editing||!confirm('Delete this opportunity? This cannot be undone.'))return;
+  const {error}=await sb.from('opportunities').delete().eq('id',editing.id);
+  if(error){$('merr').textContent='Could not delete: '+error.message;return}
+  $('modal').classList.remove('open');load();
+};
+const STEPS=[
+ {v:'home',el:'nav [data-v=home]',t:'Home',x:'Start here each day. It shows what is closing in the next 14 days and what you are working on.'},
+ {v:'home',el:'.stats',t:'Quick counts',x:'These four boxes count deadlines this fortnight, entries being prepared, applications submitted, and entries still to verify.'},
+ {v:'list',el:'nav [data-v=list]',t:'Opportunities',x:'Every verified grant, partnership, fellowship and CSR call lives here, sorted by deadline.'},
+ {v:'list',el:'.filters',t:'Search and filters',x:'Narrow the list by region (Nigeria, Africa, Diaspora, Global), type, theme or status. Combine filters to find the right fit fast.'},
+ {v:'list',el:'#add',t:'Add an opportunity',x:'Found a call? Tap here. Enter the title, funder, deadline, eligibility, documents needed and how to apply. Open any entry later to edit it.'},
+ {v:'review',el:'nav [data-v=review]',t:'Review queue',x:'New entries wait here. Check the deadline and eligibility on the funder\'s own page, then open the entry and tick "Verified".'},
+ {v:'pipe',el:'nav [data-v=pipe]',t:'Pipeline',x:'Follow each application from Spotted to Reviewing, Preparing, Submitted, then Won or Lost. Change an entry\'s status to move it.'},
+ {v:'home',el:'#tourbtn',t:'Need this again?',x:'Tap "Take a tour" any time to replay this guide.'}
+];
+let si=0,spot=null;
+function showStep(){
+  if(spot)spot.classList.remove('spot');
+  while(si<STEPS.length&&!document.querySelector(STEPS[si].el)?.offsetParent&&STEPS[si].v===undefined)si++;
+  const s=STEPS[si];
+  document.querySelector(`nav button[data-v=${s.v}]`).click();
+  const el=document.querySelector(s.el);
+  if(!el||!el.offsetParent){si<STEPS.length-1?(si++,showStep()):endTour();return}
+  spot=el;el.classList.add('spot');el.scrollIntoView({block:'center',behavior:'auto'});
+  $('tt').textContent=s.t;$('tb').textContent=s.x;$('tc').textContent=`${si+1} of ${STEPS.length}`;
+  $('tprev').classList.toggle('hide',si===0);$('tnext').textContent=si===STEPS.length-1?'Done':'Next';
+  $('tour').classList.add('open');
+}
+function startTour(){si=0;showStep()}
+function endTour(){if(spot)spot.classList.remove('spot');$('tour').classList.remove('open');try{localStorage.setItem('mhyi_tour_done','1')}catch(e){}}
+function maybeTour(){let d=null;try{d=localStorage.getItem('mhyi_tour_done')}catch(e){}if(!d)startTour()}
+$('tourbtn').onclick=startTour;$('tskip').onclick=endTour;
+$('tnext').onclick=()=>{si>=STEPS.length-1?endTour():(si++,showStep())};
+$('tprev').onclick=()=>{if(si>0){si--;showStep()}};
+boot();
+</script>
+</body>
+</html>
