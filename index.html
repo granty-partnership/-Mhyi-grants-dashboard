@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MHYI Grants and Partnerships Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 :root{--ink:#14283A;--teal:#0E4F5C;--sage:#5E8C73;--amber:#E0A526;--bg:#EEF2F5;--card:#fff;--line:#d5dde4;--red:#B5402F}
@@ -82,10 +83,19 @@ label{font-weight:600;font-size:13px;display:block;margin:10px 0 3px}
     <button data-v="list">Opportunities</button>
     <button data-v="pipe">Pipeline</button>
     <button data-v="review">Review queue</button>
+    <button data-v="team" id="navteam" class="hide">Team</button>
   </nav>
   <button class="btn alt" id="tourbtn">Take a tour</button>
+  <button class="btn alt" id="pwbtn">Change password</button>
   <button class="btn alt" id="signout">Sign out</button>
 </header>
+<div class="modal" id="pwmodal"><div class="sheet" style="max-width:380px">
+  <h2>Change password</h2>
+  <label for="np1">New password (8+ characters)</label><input id="np1" type="password" autocomplete="new-password">
+  <label for="np2">Repeat new password</label><input id="np2" type="password" autocomplete="new-password">
+  <div class="row"><button class="btn" id="pwsave">Save password</button><button class="btn alt" id="pwclose">Cancel</button></div>
+  <p id="pwmsg" class="meta"></p>
+</div></div>
 <div id="tour" role="dialog" aria-live="polite">
   <h3 id="tt"></h3><p id="tb"></p>
   <div class="row"><span class="meta" id="tc"></span>
@@ -103,6 +113,7 @@ label{font-weight:600;font-size:13px;display:block;margin:10px 0 3px}
   </div>
   <div id="pipe" class="hide"><div class="board" id="board"></div></div>
   <div id="review" class="hide"></div>
+  <div id="team" class="hide"></div>
 </main>
 </div>
 
@@ -142,9 +153,8 @@ label{font-weight:600;font-size:13px;display:block;margin:10px 0 3px}
 </div></div>
 
 <script>
-// 1) Paste your Supabase project values here (Project Settings > API). Use the anon public key only.
-const SUPABASE_URL = 'https://nawfdzifccbszemljars.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable__o-8riDrIEwWnZErkLiTDw_Ri7BWeLA';
+// Your Supabase URL and publishable key now live in config.js
+const {SUPABASE_URL,SUPABASE_ANON_KEY}=window.MHYI_CONFIG||{};
 
 const TYPES=['Grant','Partnership','Fellowship','CSR','Award','Other'];
 const REGIONS=['Nigeria','West Africa','Africa','Diaspora','Global'];
@@ -165,7 +175,7 @@ async function boot(){
   if(!session){$('login').classList.remove('hide');$('app').classList.add('hide');return}
   const {data:r}=await sb.from('team_members').select('role').maybeSingle();
   if(!r){await sb.auth.signOut();$('lerr').textContent='This email is not on the MHYI team list.';$('login').classList.remove('hide');return}
-  role=r.role;$('login').classList.add('hide');$('app').classList.remove('hide');
+  role=r.role;myEmail=session.user.email.toLowerCase();if(role==='admin')$('navteam').classList.remove('hide');$('login').classList.add('hide');$('app').classList.remove('hide');
   if(role==='viewer')$('add').classList.add('hide');
   init();await load();maybeTour();
 }
@@ -183,7 +193,8 @@ function init(){
   ['q','fr','ft','fth','fs'].forEach(i=>$(i).oninput=renderList);
   document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
     document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-    ['home','list','pipe','review'].forEach(v=>$(v).classList.toggle('hide',v!==b.dataset.v));
+    ['home','list','pipe','review','team'].forEach(v=>$(v).classList.toggle('hide',v!==b.dataset.v));
+    if(b.dataset.v==='team')renderTeam();
   });
 }
 async function load(){
@@ -276,6 +287,52 @@ $('del').onclick=async()=>{
   if(error){$('merr').textContent='Could not delete: '+error.message;return}
   $('modal').classList.remove('open');load();
 };
+$('pwbtn').onclick=()=>{$('np1').value=$('np2').value='';$('pwmsg').textContent='';$('pwmodal').classList.add('open')};
+$('pwclose').onclick=()=>$('pwmodal').classList.remove('open');
+$('pwsave').onclick=async()=>{
+  const a=$('np1').value;
+  if(a.length<8){$('pwmsg').style.color='var(--red)';$('pwmsg').textContent='Use at least 8 characters.';return}
+  if(a!==$('np2').value){$('pwmsg').style.color='var(--red)';$('pwmsg').textContent='The two passwords do not match.';return}
+  const {error}=await sb.auth.updateUser({password:a});
+  $('pwmsg').style.color=error?'var(--red)':'var(--sage)';
+  $('pwmsg').textContent=error?error.message:'Password changed.';
+  if(!error)setTimeout(()=>$('pwmodal').classList.remove('open'),1200);
+};
+let myEmail='';
+async function api(action,body={}){
+  const {data:{session}}=await sb.auth.getSession();
+  const r=await fetch('/.netlify/functions/team',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify({action,...body})});
+  const j=await r.json().catch(()=>({error:'Unexpected response. Is the Netlify function deployed?'}));
+  if(!r.ok)throw new Error(j.error||'Request failed');
+  return j;
+}
+async function renderTeam(msg=''){
+  const t=$('team');
+  try{
+    const {members}=await api('list');
+    t.innerHTML=`<div class="help"><b>Admin</b>: add, edit, verify and delete. <b>Editor</b>: add, edit and verify. <b>Viewer</b>: read only. New people sign in with the email and temporary password you set here.</div>
+    <div class="sheet" style="margin-bottom:14px"><h3>Add a team member</h3>
+      <div class="grid2"><div><label for="t_email">Email</label><input id="t_email" type="email"></div>
+      <div><label for="t_pw">Temporary password (8+ characters)</label><input id="t_pw" type="text"></div>
+      <div><label for="t_role">Role</label><select id="t_role"><option>viewer</option><option>editor</option><option>admin</option></select></div></div>
+      <div class="row"><button class="btn" id="t_add">Add member</button></div>
+      <p class="meta" id="t_msg" style="color:var(--red)">${esc(msg)}</p></div>
+    <div id="tlist">${members.map(m=>`<div class="item" style="cursor:default;align-items:center"><div><h3>${esc(m.email)}</h3>${m.email.toLowerCase()===myEmail?'<span class="meta">You</span>':''}</div>
+      <div style="display:flex;gap:8px"><select data-role="${esc(m.email)}" ${m.email.toLowerCase()===myEmail?'disabled':''} aria-label="Role for ${esc(m.email)}">${['admin','editor','viewer'].map(r=>`<option ${r===m.role?'selected':''}>${r}</option>`).join('')}</select>
+      <button class="btn red" data-rm="${esc(m.email)}" ${m.email.toLowerCase()===myEmail?'disabled':''}>Remove</button></div></div>`).join('')}</div>`;
+    $('t_add').onclick=async()=>{
+      try{await api('add',{email:$('t_email').value,password:$('t_pw').value,role:$('t_role').value});renderTeam('Added. Share the email and temporary password with them.')}
+      catch(e){$('t_msg').textContent=e.message}
+    };
+    t.querySelectorAll('[data-role]').forEach(s=>s.onchange=async()=>{
+      try{await api('role',{email:s.dataset.role,role:s.value});renderTeam('Role updated.')}catch(e){$('t_msg').textContent=e.message}
+    });
+    t.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{
+      if(!confirm('Remove access for '+b.dataset.rm+'?'))return;
+      try{await api('remove',{email:b.dataset.rm});renderTeam('Access removed.')}catch(e){$('t_msg').textContent=e.message}
+    });
+  }catch(e){t.innerHTML=`<div class="empty">Could not load the team: ${esc(e.message)}</div>`}
+}
 const STEPS=[
  {v:'home',el:'nav [data-v=home]',t:'Home',x:'Start here each day. It shows what is closing in the next 14 days and what you are working on.'},
  {v:'home',el:'.stats',t:'Quick counts',x:'These four boxes count deadlines this fortnight, entries being prepared, applications submitted, and entries still to verify.'},
